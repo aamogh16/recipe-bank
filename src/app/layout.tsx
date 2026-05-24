@@ -7,7 +7,18 @@ const geist = Geist({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "RecipeBank",
-  description: "Your personal recipe collection",
+  description: "A personal recipe collection — import from any URL, search by vibe, and cook with confidence.",
+  openGraph: {
+    title: "RecipeBank",
+    description: "A personal recipe collection — import from any URL, search by vibe, and cook with confidence.",
+    siteName: "RecipeBank",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "RecipeBank",
+    description: "A personal recipe collection — import from any URL, search by vibe, and cook with confidence.",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
