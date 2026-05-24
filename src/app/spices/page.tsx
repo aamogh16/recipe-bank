@@ -1,6 +1,5 @@
 import { db } from "@/db";
 import { recipes } from "@/db/schema";
-import { Badge } from "@/components/ui/badge";
 import type { Ingredient } from "@/db/schema";
 
 async function getSpices() {
@@ -28,10 +27,9 @@ export default async function SpicesPage() {
         <p className="text-muted-foreground">Add some recipes first.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {spices.map(([name, count]) => (
-            <div key={name} className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm">
-              <span>{name}</span>
-              <Badge variant="secondary" className="rounded-full text-xs px-1.5 py-0">{count}</Badge>
+          {spices.map(([name]) => (
+            <div key={name} className="rounded-full border border-border bg-card px-3 py-1.5 text-sm">
+              {name}
             </div>
           ))}
         </div>

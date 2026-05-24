@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { db } from "@/db";
-import { recipes, recipeNotes } from "@/db/schema";
+import { recipes } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ChefHat, Heart, ExternalLink, UtensilsCrossed } from "lucide-react";
 import RecipeActions from "@/components/recipe-actions";
-import type { Ingredient, Step } from "@/db/schema";
+import RecipeEditForm from "@/components/recipe-edit-form";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,10 +23,6 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   if (!recipe) notFound();
 
-  const ingredients = recipe.ingredients as Ingredient[];
-  const steps = recipe.steps as Step[];
-  const groups = [...new Set(ingredients.map((i) => i.group))];
-
   return (
     <div className="max-w-2xl mx-auto pb-16">
       {/* Hero image */}
@@ -38,7 +34,6 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
             <UtensilsCrossed size={64} className="text-neutral-600" />
           </div>
         )}
-        {/* Title overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-6 py-5">
           <h1 className="text-2xl font-bold text-white leading-tight">{recipe.title}</h1>
         </div>
@@ -80,50 +75,11 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           </a>
         )}
 
-        {/* Description */}
-        {recipe.description && (
-          <p className="text-muted-foreground text-sm leading-relaxed">{recipe.description}</p>
-        )}
-
-        {/* Servings + actions */}
+        {/* Actions: favorite, log cook, delete, notes */}
         <RecipeActions recipe={recipe} />
 
-        {/* Ingredients */}
-        <section>
-          <h2 className="text-lg font-semibold mb-4">Ingredients</h2>
-          {groups.map((group) => (
-            <div key={group} className="mb-4">
-              {group && <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">{group}</h3>}
-              <ul className="space-y-1">
-                {ingredients
-                  .filter((i) => i.group === group)
-                  .map((ing, idx) => (
-                    <li key={idx} className="flex items-baseline gap-2 text-sm">
-                      <span className="text-muted-foreground shrink-0">
-                        {ing.quantity} {ing.unit}
-                      </span>
-                      <span>{ing.name}</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-        </section>
-
-        {/* Steps */}
-        <section>
-          <h2 className="text-lg font-semibold mb-4">Instructions</h2>
-          <ol className="space-y-4">
-            {steps.map((step) => (
-              <li key={step.order} className="flex gap-4 text-sm">
-                <span className="shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-                  {step.order}
-                </span>
-                <p className="leading-relaxed pt-0.5">{step.text}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+        {/* Description + ingredients + steps (view/edit toggled) */}
+        <RecipeEditForm recipe={recipe} />
 
         {/* Notes */}
         <section>
