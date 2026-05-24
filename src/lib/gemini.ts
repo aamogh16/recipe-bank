@@ -2,8 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Ingredient, Step } from "@/db/schema";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-const embeddingModel = genAI.getGenerativeModel({ model: "embedding-001" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
 export type ExtractedRecipe = {
   title: string;
@@ -27,8 +27,21 @@ function decodeEntities(str: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ")
+    // fractions
+    .replace(/&frac12;/g, "½")
+    .replace(/&frac14;/g, "¼")
+    .replace(/&frac34;/g, "¾")
+    .replace(/&frac13;/g, "⅓")
+    .replace(/&frac23;/g, "⅔")
+    .replace(/&frac18;/g, "⅛")
+    .replace(/&frac38;/g, "⅜")
+    .replace(/&frac58;/g, "⅝")
+    .replace(/&frac78;/g, "⅞")
+    // numeric decimal and hex
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .trim();
 }
 
@@ -58,14 +71,13 @@ function tryExtractJsonLd(html: string): ExtractedRecipe | null {
       if (!recipe) continue;
 
       const rawIngredients = (recipe.recipeIngredient as string[] | undefined) ?? [];
-      const ingredients: Ingredient[] = rawIngredients.map((line) => {
-        // Basic parse: "2 cups flour" → {quantity:"2", unit:"cups", name:"flour"}
-        const parts = line.trim().split(/\s+/);
-        const qty = parts[0] ?? "";
-        const unit = parts[1] ?? "";
-        const name = parts.slice(isNaN(Number(qty)) ? 0 : (isNaN(Number(unit)) || unit.length > 8) ? 1 : 2).join(" ");
-        return { group: "", name: name || line, quantity: isNaN(Number(qty)) ? "" : qty, unit: isNaN(Number(qty)) ? "" : unit };
-      });
+      // Store the full raw string — Gemini cleanup will properly split quantity/unit/name
+      const ingredients: Ingredient[] = rawIngredients.map((line) => ({
+        group: "",
+        name: decodeEntities(line.trim()),
+        quantity: "",
+        unit: "",
+      }));
 
       const rawSteps = (recipe.recipeInstructions as unknown[] | undefined) ?? [];
       // Flatten HowToSection (grouped steps) into a flat list of HowToStep

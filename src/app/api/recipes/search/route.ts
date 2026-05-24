@@ -10,14 +10,14 @@ export async function GET(req: Request) {
   if (!q) return NextResponse.json([]);
 
   const embedding = await generateEmbedding(q);
-  const vector = `[${embedding.join(",")}]`;
+  const vec = `[${embedding.join(",")}]`;
 
   const rows = await db.execute(sql`
     SELECT id, title, photo_url, cuisine, dish_type, complexity, is_favorite, total_time_minutes,
            1 - (embedding <=> ${vector}::vector) AS similarity
     FROM recipes
     WHERE embedding IS NOT NULL
-    ORDER BY embedding <=> ${vector}::vector
+    ORDER BY embedding <=> ${vec}::vector(3072)
     LIMIT 20
   `);
 
