@@ -33,11 +33,16 @@ export async function POST(req: Request) {
   return NextResponse.json(item, { status: 201 });
 }
 
-// Clear all checked items
-export async function DELETE() {
+// ?all=true clears everything, otherwise clears only checked
+export async function DELETE(req: Request) {
   const list = await getOrCreateList();
-  await db.delete(shoppingListItems).where(
-    and(eq(shoppingListItems.shoppingListId, list.id), eq(shoppingListItems.isChecked, true))
-  );
+  const all = new URL(req.url).searchParams.get("all") === "true";
+  if (all) {
+    await db.delete(shoppingListItems).where(eq(shoppingListItems.shoppingListId, list.id));
+  } else {
+    await db.delete(shoppingListItems).where(
+      and(eq(shoppingListItems.shoppingListId, list.id), eq(shoppingListItems.isChecked, true))
+    );
+  }
   return new NextResponse(null, { status: 204 });
 }

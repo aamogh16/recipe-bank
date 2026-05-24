@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { db } from "@/db";
-import { recipes } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { recipes, recipeEdits } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ChefHat, Heart, ExternalLink, UtensilsCrossed } from "lucide-react";
 import RecipeActions from "@/components/recipe-actions";
 import RecipeEditForm from "@/components/recipe-edit-form";
+import RecipeEditsSection from "@/components/recipe-edits-section";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,10 +17,13 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     try { new URL(url); return true; } catch { return false; }
   }
 
-  const recipe = await db.query.recipes.findFirst({
-    where: eq(recipes.id, id),
-    with: { notes: { orderBy: (n, { desc }) => desc(n.createdAt) } },
-  });
+  const [recipe, edits] = await Promise.all([
+    db.query.recipes.findFirst({
+      where: eq(recipes.id, id),
+      with: { notes: { orderBy: (n, { desc }) => desc(n.createdAt) } },
+    }),
+    db.select().from(recipeEdits).where(eq(recipeEdits.recipeId, id)).orderBy(desc(recipeEdits.createdAt)),
+  ]);
 
   if (!recipe) notFound();
 
@@ -80,6 +84,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
         {/* Description + ingredients + steps (view/edit toggled) */}
         <RecipeEditForm recipe={recipe} />
+
+        {/* Recipe Edits */}
+        {edits.length > 0 && <RecipeEditsSection edits={edits} />}
 
         {/* Notes */}
         <section>
