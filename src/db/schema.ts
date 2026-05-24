@@ -9,7 +9,6 @@ import {
   numeric,
   vector,
   pgEnum,
-  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -20,50 +19,41 @@ export const complexityEnum = pgEnum("complexity", ["easy", "medium", "hard"]);
 
 // ─── Recipes ──────────────────────────────────────────────────────────────────
 
-export const recipes = pgTable(
-  "recipes",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    title: text("title").notNull(),
-    sourceUrl: text("source_url"),
-    sourceType: sourceTypeEnum("source_type").notNull().default("manual"),
-    photoUrl: text("photo_url"),
-    isFavorite: boolean("is_favorite").notNull().default(false),
+export const recipes = pgTable("recipes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  sourceUrl: text("source_url"),
+  sourceType: sourceTypeEnum("source_type").notNull().default("manual"),
+  photoUrl: text("photo_url"),
+  isFavorite: boolean("is_favorite").notNull().default(false),
 
-    // Ingredients stored as [{group, name, quantity, unit}]
-    ingredients: jsonb("ingredients")
-      .notNull()
-      .$type<Ingredient[]>()
-      .default([]),
+  ingredients: jsonb("ingredients")
+    .notNull()
+    .$type<Ingredient[]>()
+    .default([]),
 
-    // Steps stored as [{order, text}]
-    steps: jsonb("steps")
-      .notNull()
-      .$type<Step[]>()
-      .default([]),
+  steps: jsonb("steps")
+    .notNull()
+    .$type<Step[]>()
+    .default([]),
 
-    originalServings: integer("original_servings"),
-    currentServings: integer("current_servings"),
+  originalServings: integer("original_servings"),
+  currentServings: integer("current_servings"),
 
-    // AI-generated metadata
-    cuisine: text("cuisine"),
-    dishType: text("dish_type"),
-    complexity: complexityEnum("complexity"),
-    prepTimeMinutes: integer("prep_time_minutes"),
-    totalTimeMinutes: integer("total_time_minutes"),
-    flavorProfiles: jsonb("flavor_profiles").$type<string[]>().default([]),
-    description: text("description"),
+  cuisine: text("cuisine"),
+  dishType: text("dish_type"),
+  complexity: complexityEnum("complexity"),
+  prepTimeMinutes: integer("prep_time_minutes"),
+  totalTimeMinutes: integer("total_time_minutes"),
+  flavorProfiles: jsonb("flavor_profiles").$type<string[]>().default([]),
+  description: text("description"),
 
-    // Vector embedding for semantic search (Gemini text-embedding-004 = 768 dims)
-    embedding: vector("embedding", { dimensions: 768 }),
+  // gemini-embedding-001 outputs 3072 dims
+  embedding: vector("embedding", { dimensions: 3072 }),
 
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (t) => [
-    index("embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
-  ]
-);
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 // ─── Recipe Notes ─────────────────────────────────────────────────────────────
 
