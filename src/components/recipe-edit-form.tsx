@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Pencil, X, Check, Plus, Trash2, Loader2 } from "lucide-react";
+import { Pencil, X, Check, Plus, Trash2, Loader2, ShoppingCart } from "lucide-react";
 import type { Recipe, Ingredient, Step } from "@/db/schema";
 
 const UNIT_PATTERN = /^([\d½¼¾⅓⅔⅛⅜⅝⅞\s\/\.\-]+)\s*(tsp|tbsp|teaspoon|tablespoons?|cup|oz|ounce|pound|lb|g|gram|kg|ml|liter|unit|clove|cloves|inch|slice|slices|pkg|package|can|bunch|sprig|stalk|head|pinch|dash|drop|piece|pieces)\s+(.+)$/i;
@@ -101,6 +101,14 @@ export default function RecipeEditForm({ recipe }: Props) {
 
   const groups = [...new Set(ingredients.map((i) => i.group))];
 
+  async function addIngToList(ing: Ingredient) {
+    await fetch("/api/shopping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ingredientName: ing.name, quantity: ing.quantity || null, unit: ing.unit || null }),
+    });
+  }
+
   if (!isEditing) {
     return (
       <div className="space-y-8">
@@ -130,13 +138,22 @@ export default function RecipeEditForm({ recipe }: Props) {
                 {ingredients
                   .filter((i) => i.group === group)
                   .map((ing, idx) => (
-                    <li key={idx} className="flex items-center justify-between gap-4 py-2.5">
+                    <li key={idx} className="flex items-center justify-between gap-4 py-2.5 group">
                       <span className="text-sm">{ing.name}</span>
-                      {(ing.quantity || ing.unit) && (
-                        <span className="text-sm font-bold tabular-nums shrink-0">
-                          {[ing.quantity, ing.unit].filter(Boolean).join(" ")}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(ing.quantity || ing.unit) && (
+                          <span className="text-sm font-bold tabular-nums">
+                            {[ing.quantity, ing.unit].filter(Boolean).join(" ")}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => addIngToList(ing)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                          title="Add to shopping list"
+                        >
+                          <ShoppingCart size={14} />
+                        </button>
+                      </div>
                     </li>
                   ))}
               </ul>

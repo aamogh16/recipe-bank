@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, ChefHat, Loader2, Minus, Plus, Trash2 } from "lucide-react";
+import { Heart, ChefHat, Loader2, Minus, Plus, Trash2, ShoppingCart, Check } from "lucide-react";
 import type { Recipe } from "@/db/schema";
 
 export default function RecipeActions({ recipe }: { recipe: Recipe & { notes: { id: string; content: string; createdAt: Date }[] } }) {
@@ -15,6 +15,7 @@ export default function RecipeActions({ recipe }: { recipe: Recipe & { notes: { 
   const [savingNote, setSavingNote] = useState(false);
   const [logging, setLogging] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [addedToList, setAddedToList] = useState(false);
 
   async function toggleFavorite() {
     const next = !isFavorite;
@@ -25,6 +26,12 @@ export default function RecipeActions({ recipe }: { recipe: Recipe & { notes: { 
       body: JSON.stringify({ isFavorite: next }),
     });
     router.refresh();
+  }
+
+  async function addToShoppingList() {
+    await fetch(`/api/shopping/from-recipe/${recipe.id}`, { method: "POST" });
+    setAddedToList(true);
+    setTimeout(() => setAddedToList(false), 2500);
   }
 
   async function deleteRecipe() {
@@ -103,6 +110,10 @@ export default function RecipeActions({ recipe }: { recipe: Recipe & { notes: { 
         <Button variant="outline" size="sm" className="gap-2" onClick={logCook} disabled={logging}>
           {logging ? <Loader2 size={14} className="animate-spin" /> : <ChefHat size={14} />}
           Log Cook
+        </Button>
+        <Button variant="outline" size="sm" className="gap-2" onClick={addToShoppingList} disabled={addedToList}>
+          {addedToList ? <Check size={14} /> : <ShoppingCart size={14} />}
+          {addedToList ? "Added!" : "Add to List"}
         </Button>
         <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={deleteRecipe} disabled={deleting}>
           {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
