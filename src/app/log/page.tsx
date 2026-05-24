@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db } from "@/db";
 import { desc } from "drizzle-orm";
 import { cookLog } from "@/db/schema";
