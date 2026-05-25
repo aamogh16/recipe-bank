@@ -64,4 +64,4 @@ PRs are welcome. Please open a pull request against `main` — direct pushes to 
 
 ---
 
-Made with love by Amogh · v1.0.0
+Made with love by Amogh · v1.1.0
