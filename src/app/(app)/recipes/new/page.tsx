@@ -18,7 +18,7 @@ function NewRecipeForm() {
   const [tab, setTab] = useState<Tab>("url");
   const [url, setUrl] = useState("");
   const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState("");
+  const [importError, setImportError] = useState(""); // used for both URL import and manual save errors
   const [title, setTitle] = useState("");
   const [ingredientsRaw, setIngredientsRaw] = useState("");
   const [stepsRaw, setStepsRaw] = useState("");
@@ -26,6 +26,7 @@ function NewRecipeForm() {
   const [saving, setSaving] = useState(false);
 
   async function afterCreate(recipeId: string) {
+    router.refresh(); // invalidate router cache so /recipes shows the new recipe
     if (assignDate && assignMeal) {
       await fetch("/api/plan", {
         method: "POST",
@@ -68,18 +69,29 @@ function NewRecipeForm() {
       .map((line) => ({ group: "", name: line.trim(), quantity: "", unit: "" }));
     const steps = stepsRaw.split("\n").filter(Boolean)
       .map((line, i) => ({ order: i + 1, text: line.trim() }));
-    const res = await fetch("/api/recipes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title, ingredients, steps,
-        originalServings: servings ? parseInt(servings) : null,
-        currentServings: servings ? parseInt(servings) : null,
-        sourceType: "manual",
-      }),
-    });
-    const recipe = await res.json();
-    await afterCreate(recipe.id);
+    try {
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title, ingredients, steps,
+          originalServings: servings ? parseInt(servings) : null,
+          currentServings: servings ? parseInt(servings) : null,
+          sourceType: "manual",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setImportError(`Save failed: ${data.error ?? res.status}`);
+        setSaving(false);
+        return;
+      }
+      const recipe = await res.json();
+      await afterCreate(recipe.id);
+    } catch (err) {
+      setImportError(`Unexpected error: ${String(err)}`);
+      setSaving(false);
+    }
   }
 
   return (
@@ -99,6 +111,8 @@ function NewRecipeForm() {
           </span>
         </div>
       )}
+
+      {importError && <p className="text-sm text-destructive mb-4">{importError}</p>}
 
       {/* Tab toggle */}
       <div className="flex gap-2 mb-8 border border-border rounded-lg p-1 w-fit">
@@ -133,7 +147,6 @@ function NewRecipeForm() {
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleImport()}
           />
-          {importError && <p className="text-sm text-destructive">{importError}</p>}
           <Button onClick={handleImport} disabled={importing || !url.trim()} className="gap-2">
             {importing && <Loader2 size={15} className="animate-spin" />}
             {importing ? "Importing…" : "Import Recipe"}
