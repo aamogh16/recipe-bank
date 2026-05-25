@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BookOpen, ShoppingCart, Flame, CalendarDays } from "lucide-react";
+import { Home, BookOpen, ShoppingCart, Flame, CalendarDays, CalendarRange } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 
 const links = [
   { href: "/", label: "Home", icon: Home },
   { href: "/recipes", label: "Recipes", icon: BookOpen },
+  { href: "/plan", label: "Plan", icon: CalendarRange },
   { href: "/log", label: "Log", icon: CalendarDays },
   { href: "/shopping", label: "Shopping", icon: ShoppingCart },
   { href: "/spices", label: "Spices", icon: Flame },

@@ -17,6 +17,7 @@ import { relations } from "drizzle-orm";
 
 export const sourceTypeEnum = pgEnum("source_type", ["manual", "url", "tiktok"]);
 export const complexityEnum = pgEnum("complexity", ["easy", "medium", "hard"]);
+export const mealTypeEnum = pgEnum("meal_type", ["breakfast", "lunch", "dinner"]);
 
 // ─── Recipes ──────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,18 @@ export const shoppingListItems = pgTable("shopping_list_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// ─── Meal Plans ───────────────────────────────────────────────────────────────
+
+export const mealPlans = pgTable("meal_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  date: text("date").notNull(), // "YYYY-MM-DD"
+  mealType: mealTypeEnum("meal_type").notNull(),
+  recipeId: uuid("recipe_id")
+    .notNull()
+    .references(() => recipes.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // ─── Recipe Edits (change history) ───────────────────────────────────────────
 
 export const recipeEdits = pgTable("recipe_edits", {
@@ -129,6 +142,7 @@ export const recipesRelations = relations(recipes, ({ many }) => ({
   cookLog: many(cookLog),
   edits: many(recipeEdits),
   shoppingListItems: many(shoppingListItems),
+  mealPlans: many(mealPlans),
 }));
 
 export const recipeNotesRelations = relations(recipeNotes, ({ one }) => ({
@@ -145,6 +159,10 @@ export const recipeEditsRelations = relations(recipeEdits, ({ one }) => ({
 
 export const shoppingListsRelations = relations(shoppingLists, ({ many }) => ({
   items: many(shoppingListItems),
+}));
+
+export const mealPlansRelations = relations(mealPlans, ({ one }) => ({
+  recipe: one(recipes, { fields: [mealPlans.recipeId], references: [recipes.id] }),
 }));
 
 export const shoppingListItemsRelations = relations(shoppingListItems, ({ one }) => ({
