@@ -59,16 +59,18 @@ async function getHomepageSections(userId: string): Promise<Section[]> {
   const quick = pick(all.filter((r) => (r.totalTimeMinutes !== null && r.totalTimeMinutes <= 30) || r.complexity === "easy"));
   if (quick.length) { commit(quick); sections.push({ title: "Quick & Easy", recipes: quick }); }
 
-  // Per cuisine
-  const cuisineMap = new Map<string, RecipeSummary[]>();
+  // Per cuisine — normalize key to lowercase so "Middle Eastern" and "middle eastern" merge
+  const toTitleCase = (s: string) => s.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+  const cuisineMap = new Map<string, { display: string; recipes: RecipeSummary[] }>();
   for (const r of all) {
     if (!r.cuisine || seen.has(r.id)) continue;
-    if (!cuisineMap.has(r.cuisine)) cuisineMap.set(r.cuisine, []);
-    cuisineMap.get(r.cuisine)!.push(r);
+    const key = r.cuisine.trim().toLowerCase();
+    if (!cuisineMap.has(key)) cuisineMap.set(key, { display: toTitleCase(r.cuisine.trim()), recipes: [] });
+    cuisineMap.get(key)!.recipes.push(r);
   }
-  for (const [cuisine, pool] of cuisineMap) {
+  for (const { display, recipes: pool } of cuisineMap.values()) {
     const picked = pick(pool);
-    if (picked.length) { commit(picked); sections.push({ title: cuisine, recipes: picked }); }
+    if (picked.length) { commit(picked); sections.push({ title: display, recipes: picked }); }
   }
 
   // Recently Added — anything not yet shown
