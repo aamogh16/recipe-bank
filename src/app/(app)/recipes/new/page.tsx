@@ -1,32 +1,69 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Link2, PenLine, Loader2, CalendarCheck2 } from "lucide-react";
+import { Link2, PenLine, Loader2, CalendarCheck2, Search } from "lucide-react";
+import { useDebounce } from "@/lib/use-debounce";
 
-type Tab = "url" | "manual";
+type Tab = "search" | "url" | "manual";
+
+type SearchResult = {
+  title: string;
+  url: string;
+  snippet: string;
+  domain: string;
+};
 
 function NewRecipeForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const assignDate = searchParams.get("date");   // e.g. "2026-05-27"
-  const assignMeal = searchParams.get("meal");   // "breakfast" | "lunch" | "dinner"
+  const assignDate = searchParams.get("date");
+  const assignMeal = searchParams.get("meal");
 
-  const [tab, setTab] = useState<Tab>("url");
+  const [tab, setTab] = useState<Tab>("search");
+
+  // Search tab state
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [importingUrl, setImportingUrl] = useState<string | null>(null);
+  const debouncedQuery = useDebounce(query, 500);
+
+  // URL tab state
   const [url, setUrl] = useState("");
   const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState(""); // used for both URL import and manual save errors
+
+  // Manual tab state
   const [title, setTitle] = useState("");
   const [ingredientsRaw, setIngredientsRaw] = useState("");
   const [stepsRaw, setStepsRaw] = useState("");
   const [servings, setServings] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Shared error
+  const [error, setError] = useState(""); // used for both URL import and manual save errors
+
+  // Fire search when debounced query changes
+  useEffect(() => {
+    if (!debouncedQuery.trim()) { setResults([]); return; }
+    setSearching(true);
+    setSearchError("");
+    fetch(`/api/search/recipes?q=${encodeURIComponent(debouncedQuery)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setResults(data);
+        else setSearchError("Search failed. Try a different query.");
+      })
+      .catch(() => setSearchError("Search unavailable."))
+      .finally(() => setSearching(false));
+  }, [debouncedQuery]);
+
   async function afterCreate(recipeId: string) {
-    router.refresh(); // invalidate router cache so /recipes shows the new recipe
+    router.refresh();
     if (assignDate && assignMeal) {
       await fetch("/api/plan", {
         method: "POST",
@@ -39,27 +76,36 @@ function NewRecipeForm() {
     }
   }
 
-  async function handleImport() {
-    if (!url.trim()) return;
-    setImporting(true);
-    setImportError("");
+  async function importFromUrl(targetUrl: string, setLoading: (v: boolean) => void) {
+    setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/recipes/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: targetUrl }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setImportError(`Import failed: ${data.detail ?? data.error ?? res.status}`);
-        setImporting(false);
+        setError(`Import failed: ${data.detail ?? data.error ?? res.status}`);
+        setLoading(false);
         return;
       }
       await afterCreate(data.id);
     } catch (err) {
-      setImportError(`Unexpected error: ${String(err)}`);
-      setImporting(false);
+      setError(`Unexpected error: ${String(err)}`);
+      setLoading(false);
     }
+  }
+
+  async function handleResultClick(result: SearchResult) {
+    setImportingUrl(result.url);
+    await importFromUrl(result.url, () => {});
+    setImportingUrl(null);
+  }
+
+  async function handleUrlImport() {
+    await importFromUrl(url.trim(), setImporting);
   }
 
   async function handleManualSave() {
@@ -82,23 +128,28 @@ function NewRecipeForm() {
       });
       if (!res.ok) {
         const data = await res.json();
-        setImportError(`Save failed: ${data.error ?? res.status}`);
+        setError(`Save failed: ${data.error ?? res.status}`);
         setSaving(false);
         return;
       }
       const recipe = await res.json();
       await afterCreate(recipe.id);
     } catch (err) {
-      setImportError(`Unexpected error: ${String(err)}`);
+      setError(`Unexpected error: ${String(err)}`);
       setSaving(false);
     }
   }
+
+  const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
+    { key: "search", label: "Search", icon: Search },
+    { key: "url", label: "Import from URL", icon: Link2 },
+    { key: "manual", label: "Enter Manually", icon: PenLine },
+  ];
 
   return (
     <div className="px-6 py-10 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold tracking-tight mb-1">Add Recipe</h1>
 
-      {/* Context banner when coming from planner */}
       {assignDate && assignMeal && (
         <div className="flex items-center gap-2 mb-6 mt-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
           <CalendarCheck2 size={14} />
@@ -112,30 +163,83 @@ function NewRecipeForm() {
         </div>
       )}
 
-      {importError && <p className="text-sm text-destructive mb-4">{importError}</p>}
+      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
 
       {/* Tab toggle */}
       <div className="flex gap-2 mb-8 border border-border rounded-lg p-1 w-fit">
-        <button
-          onClick={() => setTab("url")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            tab === "url" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Link2 size={15} />
-          Import from URL
-        </button>
-        <button
-          onClick={() => setTab("manual")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            tab === "manual" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <PenLine size={15} />
-          Enter Manually
-        </button>
+        {tabs.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => { setTab(key); setError(""); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        ))}
       </div>
 
+      {/* ── Search tab ────────────────────────────────────────────── */}
+      {tab === "search" && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Search for a recipe by name. Pick a result and we&apos;ll import it automatically.
+          </p>
+
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="e.g. chicken alfredo, pad thai, shakshuka…"
+              className="pl-9"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+            />
+            {searching && (
+              <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground animate-spin" />
+            )}
+          </div>
+
+          {searchError && <p className="text-sm text-destructive">{searchError}</p>}
+
+          {results.length > 0 && (
+            <div className="space-y-2">
+              {results.map((result) => {
+                const isImporting = importingUrl === result.url;
+                return (
+                  <button
+                    key={result.url}
+                    onClick={() => handleResultClick(result)}
+                    disabled={importingUrl !== null}
+                    className="w-full text-left rounded-xl border border-border bg-card px-4 py-3 hover:border-primary/40 hover:bg-muted/30 transition-colors disabled:opacity-50 group"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                          {result.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground/60 mt-0.5 mb-1">{result.domain}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{result.snippet}</p>
+                      </div>
+                      {isImporting && (
+                        <Loader2 size={16} className="animate-spin text-primary shrink-0 mt-0.5" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {!searching && query && results.length === 0 && !searchError && (
+            <p className="text-sm text-muted-foreground">No results. Try a different search.</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Import from URL tab ───────────────────────────────────── */}
       {tab === "url" && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
@@ -145,15 +249,16 @@ function NewRecipeForm() {
             placeholder="https://..."
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleImport()}
+            onKeyDown={(e) => e.key === "Enter" && handleUrlImport()}
           />
-          <Button onClick={handleImport} disabled={importing || !url.trim()} className="gap-2">
+          <Button onClick={handleUrlImport} disabled={importing || !url.trim()} className="gap-2">
             {importing && <Loader2 size={15} className="animate-spin" />}
             {importing ? "Importing…" : "Import Recipe"}
           </Button>
         </div>
       )}
 
+      {/* ── Manual entry tab ──────────────────────────────────────── */}
       {tab === "manual" && (
         <div className="space-y-5">
           <div className="space-y-2">
