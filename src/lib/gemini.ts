@@ -165,6 +165,48 @@ function resolveUrl(maybeRelative: string | null, base: string): string | null {
   try { return new URL(maybeRelative, base).href; } catch { return null; }
 }
 
+export async function extractRecipeFromTikTok(url: string): Promise<ExtractedRecipe> {
+  // oEmbed is public — no auth needed, works with short links too
+  const oembedRes = await fetch(
+    `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`
+  );
+  if (!oembedRes.ok) throw new Error(`TikTok oEmbed failed (${oembedRes.status})`);
+
+  const oembed = await oembedRes.json();
+  const caption: string = oembed.title ?? "";
+  const thumbnailUrl: string | null = oembed.thumbnail_url ?? null;
+
+  if (!caption.trim()) throw new Error("No caption");
+
+  const prompt = `Extract a recipe from this TikTok video caption. Return ONLY valid JSON, no markdown.
+
+{
+  "title": "string",
+  "description": "1-2 sentences or empty string",
+  "ingredients": [{"group": "", "name": "string", "quantity": "string", "unit": "string"}],
+  "steps": [{"order": 1, "text": "string"}],
+  "originalServings": number or null,
+  "cuisine": "string or null",
+  "dishType": "string or null",
+  "complexity": "easy"|"medium"|"hard"|null,
+  "prepTimeMinutes": number or null,
+  "totalTimeMinutes": number or null,
+  "flavorProfiles": ["string"],
+  "photoUrl": null
+}
+
+If the caption does not contain ingredient or step information, return empty arrays for those fields.
+
+CAPTION:
+${caption}`;
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text().replace(/```json\n?|\n?```/g, "").trim();
+  const extracted = JSON.parse(text) as ExtractedRecipe;
+  extracted.photoUrl = thumbnailUrl;
+  return extracted;
+}
+
 export async function extractRecipeFromUrl(url: string): Promise<ExtractedRecipe> {
   const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
   const html = await res.text();

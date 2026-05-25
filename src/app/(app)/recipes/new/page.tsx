@@ -88,8 +88,10 @@ function NewRecipeForm() {
       const data = await res.json();
       if (!res.ok) {
         const msg =
-          data.error === "extraction_failed"
-            ? "This page couldn't be imported — it may block automated access. Try a different result or paste the URL manually."
+          data.error === "tiktok_no_recipe"
+            ? "This TikTok doesn't have a recipe in the caption. Try one where the creator listed the ingredients and steps."
+            : data.error === "extraction_failed"
+            ? "Couldn't import this page — it may block automated access. Try a different link."
             : data.error === "Unauthorized"
             ? "You need to be signed in to import recipes."
             : "Something went wrong. Try again or use a different link.";

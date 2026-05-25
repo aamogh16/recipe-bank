@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { recipes } from "@/db/schema";
-import { extractRecipeFromUrl, generateEmbedding, buildEmbeddingText } from "@/lib/gemini";
+import { extractRecipeFromUrl, extractRecipeFromTikTok, generateEmbedding, buildEmbeddingText } from "@/lib/gemini";
 
 function ms(start: number) {
   return `${Date.now() - start}ms`;
@@ -15,17 +15,20 @@ export async function POST(req: Request) {
   const { url } = await req.json();
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
 
+  const isTikTok = url.includes("tiktok.com");
   const t0 = Date.now();
   console.log("[import] start:", url);
 
   let extracted;
   try {
     const t = Date.now();
-    extracted = await extractRecipeFromUrl(url);
+    extracted = isTikTok
+      ? await extractRecipeFromTikTok(url)
+      : await extractRecipeFromUrl(url);
     console.log(`[import] extraction done in ${ms(t)} — title: "${extracted.title}"`);
   } catch (err) {
     console.error(`[import] extraction failed after ${ms(t0)}:`, err);
-    return NextResponse.json({ error: "extraction_failed", detail: String(err) }, { status: 422 });
+    return NextResponse.json({ error: "extraction_failed" }, { status: 422 });
   }
 
   let embedding = null;
@@ -47,10 +50,18 @@ export async function POST(req: Request) {
 
   if (!extracted.title?.trim()) {
     console.error(`[import] no title extracted — site likely blocks scraping`);
-    return NextResponse.json({
-      error: "extraction_failed",
-      detail: "Couldn't read a recipe from that page. The site may block automated access. Try a different link or paste the URL directly.",
-    }, { status: 422 });
+    return NextResponse.json({ error: "extraction_failed" }, { status: 422 });
+  }
+
+  // TikTok-specific: if Gemini got a title but no ingredients AND no steps,
+  // the caption didn't contain a real recipe.
+  if (isTikTok) {
+    const hasIngredients = (extracted.ingredients?.length ?? 0) > 0;
+    const hasSteps = (extracted.steps?.length ?? 0) > 0;
+    if (!hasIngredients && !hasSteps) {
+      console.error(`[import] tiktok caption had no recipe content`);
+      return NextResponse.json({ error: "tiktok_no_recipe" }, { status: 422 });
+    }
   }
 
   try {
@@ -62,7 +73,7 @@ export async function POST(req: Request) {
         title: extracted.title,
         description: extracted.description,
         sourceUrl: url,
-        sourceType: "url",
+        sourceType: isTikTok ? "tiktok" : "url",
         photoUrl: extracted.photoUrl,
         ingredients: extracted.ingredients,
         steps: extracted.steps,
