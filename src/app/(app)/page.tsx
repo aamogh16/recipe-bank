@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { recipes } from "@/db/schema";
-import { desc, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import RecipeCard from "@/components/recipe-card";
 import { Plus } from "lucide-react";
 
@@ -20,7 +21,7 @@ type RecipeSummary = {
 
 type Section = { title: string; href?: string; recipes: RecipeSummary[] };
 
-async function getHomepageSections(): Promise<Section[]> {
+async function getHomepageSections(userId: string): Promise<Section[]> {
   const all = await db
     .select({
       id: recipes.id,
@@ -34,6 +35,7 @@ async function getHomepageSections(): Promise<Section[]> {
       createdAt: recipes.createdAt,
     })
     .from(recipes)
+    .where(eq(recipes.userId, userId))
     .orderBy(sql`RANDOM()`);
 
   if (all.length === 0) return [];
@@ -57,7 +59,7 @@ async function getHomepageSections(): Promise<Section[]> {
   const quick = pick(all.filter((r) => (r.totalTimeMinutes !== null && r.totalTimeMinutes <= 30) || r.complexity === "easy"));
   if (quick.length) { commit(quick); sections.push({ title: "Quick & Easy", recipes: quick }); }
 
-  // Per cuisine (show any cuisine that has at least 1 recipe)
+  // Per cuisine
   const cuisineMap = new Map<string, RecipeSummary[]>();
   for (const r of all) {
     if (!r.cuisine || seen.has(r.id)) continue;
@@ -73,7 +75,6 @@ async function getHomepageSections(): Promise<Section[]> {
   const recent = all.filter((r) => !seen.has(r.id));
   if (recent.length) sections.push({ title: "Recently Added", href: "/recipes", recipes: recent.slice(0, 12) });
 
-  // If nothing was categorized at all, just show everything
   if (sections.length === 0) {
     sections.push({ title: "All Recipes", href: "/recipes", recipes: all.slice(0, 12) });
   }
@@ -82,7 +83,8 @@ async function getHomepageSections(): Promise<Section[]> {
 }
 
 export default async function Home() {
-  const sections = await getHomepageSections();
+  const { userId } = await auth();
+  const sections = await getHomepageSections(userId!);
 
   return (
     <div className="py-10 max-w-5xl mx-auto">
@@ -102,7 +104,6 @@ export default async function Home() {
         <div className="space-y-10">
           {sections.map((section) => (
             <div key={section.title}>
-              {/* Section header */}
               <div className="flex items-center justify-between px-6 mb-4">
                 <h2 className="font-semibold text-base">{section.title}</h2>
                 {section.href && (
@@ -112,7 +113,6 @@ export default async function Home() {
                 )}
               </div>
 
-              {/* Horizontal scroll row */}
               <div className="overflow-x-auto px-6">
                 <div className="flex gap-3 pb-2" style={{ width: "max-content" }}>
                   {section.recipes.map((r) => (
@@ -120,7 +120,6 @@ export default async function Home() {
                       <RecipeCard recipe={r} />
                     </div>
                   ))}
-                  {/* Add recipe nudge at the end */}
                   {section.title === "All Recipes" || section.title === "Recently Added" ? (
                     <Link
                       href="/recipes/new"

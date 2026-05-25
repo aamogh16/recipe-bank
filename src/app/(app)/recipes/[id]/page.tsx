@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { recipes, recipeEdits } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ChefHat, Heart, ExternalLink, UtensilsCrossed } from "lucide-react";
 import RecipeActions from "@/components/recipe-actions";
@@ -10,6 +11,7 @@ import RecipeEditForm from "@/components/recipe-edit-form";
 import RecipeEditsSection from "@/components/recipe-edits-section";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
+  const { userId } = await auth();
   const { id } = await params;
 
   function isValidUrl(url: string | null | undefined): url is string {
@@ -19,7 +21,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   const [recipe, edits] = await Promise.all([
     db.query.recipes.findFirst({
-      where: eq(recipes.id, id),
+      where: and(eq(recipes.id, id), eq(recipes.userId, userId!)),
       with: { notes: { orderBy: (n, { desc }) => desc(n.createdAt) } },
     }),
     db.select().from(recipeEdits).where(eq(recipeEdits.recipeId, id)).orderBy(desc(recipeEdits.createdAt)),

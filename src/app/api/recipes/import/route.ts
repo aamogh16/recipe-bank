@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { recipes } from "@/db/schema";
 import { extractRecipeFromUrl, generateEmbedding, buildEmbeddingText } from "@/lib/gemini";
@@ -8,6 +9,9 @@ function ms(start: number) {
 }
 
 export async function POST(req: Request) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { url } = await req.json();
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
 
@@ -46,6 +50,7 @@ export async function POST(req: Request) {
     const [row] = await db
       .insert(recipes)
       .values({
+        userId,
         title: extracted.title,
         description: extracted.description,
         sourceUrl: url,

@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { desc } from "drizzle-orm";
 import { cookLog } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
 import { UtensilsCrossed } from "lucide-react";
@@ -13,7 +14,10 @@ function isValidUrl(url: string | null | undefined): url is string {
 }
 
 export default async function LogPage() {
+  const { userId } = await auth();
+
   const entries = await db.query.cookLog.findMany({
+    where: eq(cookLog.userId, userId!),
     with: { recipe: true },
     orderBy: (c, { desc: d }) => d(c.cookedAt),
   });
@@ -43,7 +47,6 @@ export default async function LogPage() {
         <div className="space-y-12">
           {[...groups.entries()].map(([month, monthEntries]) => (
             <div key={month}>
-              {/* Month header */}
               <div className="flex items-center gap-3 mb-5">
                 <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   {month}
@@ -52,9 +55,7 @@ export default async function LogPage() {
                 <span className="text-xs text-muted-foreground">{monthEntries.length} cook{monthEntries.length !== 1 ? "s" : ""}</span>
               </div>
 
-              {/* Timeline entries */}
               <div className="relative pl-8">
-                {/* Vertical line */}
                 <div className="absolute left-2.5 top-0 bottom-0 w-px bg-border" />
 
                 <div className="space-y-3">
@@ -66,14 +67,12 @@ export default async function LogPage() {
 
                     return (
                       <div key={entry.id} className="relative">
-                        {/* Timeline dot */}
                         <div className="absolute -left-8 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full bg-background border-2 border-primary" />
 
                         <Link
                           href={`/recipes/${entry.recipeId}`}
                           className="flex gap-3 items-center rounded-xl border border-border bg-card p-3 hover:border-primary/40 transition-colors group"
                         >
-                          {/* Photo */}
                           <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted shrink-0">
                             {isValidUrl(entry.recipe.photoUrl) ? (
                               <Image
@@ -90,7 +89,6 @@ export default async function LogPage() {
                             )}
                           </div>
 
-                          {/* Info */}
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
                               {entry.recipe.title}
@@ -103,7 +101,6 @@ export default async function LogPage() {
                             )}
                           </div>
 
-                          {/* Date */}
                           <div className="shrink-0 text-right">
                             <div className="text-xl font-bold leading-none tabular-nums">{day}</div>
                             <div className="text-xs text-muted-foreground uppercase tracking-wide">{weekday}</div>
