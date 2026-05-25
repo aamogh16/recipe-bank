@@ -1,17 +1,19 @@
 export const dynamic = "force-dynamic";
 
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { recipes } from "@/db/schema";
-import { desc, asc } from "drizzle-orm";
+import { desc, asc, eq } from "drizzle-orm";
 import type { Ingredient } from "@/db/schema";
 import SpiceSortToggle from "./sort-toggle";
 
 type Sort = "popular" | "newest";
 
-async function getSpices(sort: Sort) {
+async function getSpices(sort: Sort, userId: string) {
   const rows = await db
     .select({ ingredients: recipes.ingredients, createdAt: recipes.createdAt })
     .from(recipes)
+    .where(eq(recipes.userId, userId))
     .orderBy(sort === "newest" ? desc(recipes.createdAt) : asc(recipes.createdAt));
 
   if (sort === "popular") {
@@ -47,9 +49,10 @@ export default async function SpicesPage({
 }: {
   searchParams: Promise<{ sort?: string }>;
 }) {
+  const { userId } = await auth();
   const { sort: rawSort } = await searchParams;
   const sort: Sort = rawSort === "newest" ? "newest" : "popular";
-  const spices = await getSpices(sort);
+  const spices = await getSpices(sort, userId!);
 
   return (
     <div className="px-6 py-10 max-w-3xl mx-auto">

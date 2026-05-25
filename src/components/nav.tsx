@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, BookOpen, ShoppingCart, Flame, CalendarDays } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
 
 const links = [
   { href: "/", label: "Home", icon: Home },
@@ -34,7 +35,19 @@ export default function Nav() {
             {label}
           </Link>
         ))}
+        {/* User account at the bottom of sidebar */}
+        <div className="mt-auto px-3 pt-4 border-t border-border">
+          <UserButton
+            appearance={{ elements: { avatarBox: "w-8 h-8" } }}
+            userProfileMode="modal"
+          />
+        </div>
       </aside>
+
+      {/* Mobile: user button fixed top-right */}
+      <div className="md:hidden fixed top-4 right-4 z-50">
+        <UserButton userProfileMode="modal" />
+      </div>
 
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card flex">

@@ -10,6 +10,7 @@ import {
   vector,
   pgEnum,
 } from "drizzle-orm/pg-core";
+// userId columns store Clerk user IDs (e.g. "user_2abc123") — no separate users table needed
 import { relations } from "drizzle-orm";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ export const complexityEnum = pgEnum("complexity", ["easy", "medium", "hard"]);
 
 export const recipes = pgTable("recipes", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id"),
   title: text("title").notNull(),
   sourceUrl: text("source_url"),
   sourceType: sourceTypeEnum("source_type").notNull().default("manual"),
@@ -70,6 +72,7 @@ export const recipeNotes = pgTable("recipe_notes", {
 
 export const cookLog = pgTable("cook_log", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id"),
   recipeId: uuid("recipe_id")
     .notNull()
     .references(() => recipes.id, { onDelete: "cascade" }),
@@ -81,6 +84,7 @@ export const cookLog = pgTable("cook_log", {
 
 export const shoppingLists = pgTable("shopping_lists", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id"),
   name: text("name").notNull().default("My Shopping List"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

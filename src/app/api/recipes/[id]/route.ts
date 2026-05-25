@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { recipes, recipeEdits } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const TRACKED_FIELDS = [
   "title", "description", "cuisine", "dishType", "complexity",
@@ -10,9 +11,12 @@ const TRACKED_FIELDS = [
 ] as const;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const recipe = await db.query.recipes.findFirst({
-    where: eq(recipes.id, id),
+    where: and(eq(recipes.id, id), eq(recipes.userId, userId)),
     with: { notes: { orderBy: (n, { desc }) => desc(n.createdAt) }, cookLog: true },
   });
   if (!recipe) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -20,13 +24,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const body = await req.json();
 
-  const current = await db.query.recipes.findFirst({ where: eq(recipes.id, id) });
+  const current = await db.query.recipes.findFirst({
+    where: and(eq(recipes.id, id), eq(recipes.userId, userId)),
+  });
   if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Diff and log changed fields
   const edits = TRACKED_FIELDS.flatMap((field) => {
     const oldVal = (current as Record<string, unknown>)[field];
     const newVal = body[field];
@@ -40,7 +48,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const [row] = await db
     .update(recipes)
     .set({ ...body, updatedAt: new Date() })
-    .where(eq(recipes.id, id))
+    .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
     .returning();
 
   if (edits.length > 0) {
@@ -51,7 +59,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
-  await db.delete(recipes).where(eq(recipes.id, id));
+  await db.delete(recipes).where(and(eq(recipes.id, id), eq(recipes.userId, userId)));
   return new NextResponse(null, { status: 204 });
 }
