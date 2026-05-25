@@ -10,6 +10,50 @@ import type { Recipe, Ingredient, Step } from "@/db/schema";
 
 const UNIT_PATTERN = /^([\d½¼¾⅓⅔⅛⅜⅝⅞\s\/\.\-]+)\s*(tsp|tbsp|teaspoon|tablespoons?|cup|oz|ounce|pound|lb|g|gram|kg|ml|liter|unit|clove|cloves|inch|slice|slices|pkg|package|can|bunch|sprig|stalk|head|pinch|dash|drop|piece|pieces)\s+(.+)$/i;
 
+// ── Quantity scaling ──────────────────────────────────────────────────────────
+
+const FRAC_IN: Record<string, number> = {
+  "½": 0.5, "¼": 0.25, "¾": 0.75,
+  "⅓": 1/3, "⅔": 2/3,
+  "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
+};
+
+const FRAC_OUT: [number, string][] = [
+  [1/8, "⅛"], [1/4, "¼"], [1/3, "⅓"], [3/8, "⅜"],
+  [1/2, "½"], [5/8, "⅝"], [2/3, "⅔"], [3/4, "¾"], [7/8, "⅞"],
+];
+
+function parseQtyStr(s: string): number | null {
+  if (!s?.trim()) return null;
+  let str = s.trim();
+  for (const [ch, val] of Object.entries(FRAC_IN)) str = str.replace(ch, ` ${val}`);
+  str = str.trim();
+  const mixedSlash = str.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixedSlash) return parseInt(mixedSlash[1]) + parseInt(mixedSlash[2]) / parseInt(mixedSlash[3]);
+  const mixedDec = str.match(/^(\d+)\s+([\d.]+)$/);
+  if (mixedDec) return parseInt(mixedDec[1]) + parseFloat(mixedDec[2]);
+  const slashFrac = str.match(/^(\d+)\/(\d+)$/);
+  if (slashFrac) return parseInt(slashFrac[1]) / parseInt(slashFrac[2]);
+  const n = parseFloat(str);
+  return isNaN(n) ? null : n;
+}
+
+function fmtQtyNum(n: number): string {
+  if (n <= 0) return "0";
+  const whole = Math.floor(n);
+  const frac = n - whole;
+  if (frac < 0.02) return String(whole);
+  const nice = FRAC_OUT.find(([v]) => Math.abs(frac - v) < 0.04);
+  if (nice) return whole > 0 ? `${whole} ${nice[1]}` : nice[1];
+  return parseFloat(n.toFixed(1)).toString();
+}
+
+function scaleQty(raw: string, factor: number): string {
+  if (factor === 1 || !raw.trim()) return raw;
+  const n = parseQtyStr(raw);
+  return n === null ? raw : fmtQtyNum(n * factor);
+}
+
 function splitIngredient(ing: Ingredient): Ingredient {
   if (ing.quantity || ing.unit) return ing;
   const m = ing.name.match(UNIT_PATTERN);
@@ -19,11 +63,12 @@ function splitIngredient(ing: Ingredient): Ingredient {
 
 interface Props {
   recipe: Recipe;
+  forceEdit?: boolean;
 }
 
-export default function RecipeEditForm({ recipe }: Props) {
+export default function RecipeEditForm({ recipe, forceEdit = false }: Props) {
   const router = useRouter();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(forceEdit);
   const [saving, setSaving] = useState(false);
 
   const initialIngredients = recipe.ingredients as Ingredient[];
@@ -39,6 +84,10 @@ export default function RecipeEditForm({ recipe }: Props) {
   const [servings, setServings] = useState(recipe.originalServings?.toString() ?? "");
   const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients);
   const [steps, setSteps] = useState<Step[]>(initialSteps);
+
+  // Display-only serving scaler (view mode)
+  const [viewServings, setViewServings] = useState(recipe.originalServings ?? 1);
+  const scaleFactor = recipe.originalServings ? viewServings / recipe.originalServings : 1;
 
   function cancel() {
     setTitle(recipe.title);
@@ -126,7 +175,36 @@ export default function RecipeEditForm({ recipe }: Props) {
 
         {/* Ingredients */}
         <section>
-          <h2 className="text-lg font-semibold mb-4">Ingredients</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Ingredients</h2>
+            {recipe.originalServings && (
+              <div className="flex items-center gap-2 text-sm">
+                <button
+                  onClick={() => setViewServings((v) => Math.max(1, v - 1))}
+                  className="w-6 h-6 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  −
+                </button>
+                <span className="tabular-nums text-sm min-w-[5rem] text-center">
+                  {viewServings} serving{viewServings !== 1 ? "s" : ""}
+                  {scaleFactor !== 1 && (
+                    <button
+                      onClick={() => setViewServings(recipe.originalServings!)}
+                      className="ml-1.5 text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    >
+                      reset
+                    </button>
+                  )}
+                </span>
+                <button
+                  onClick={() => setViewServings((v) => v + 1)}
+                  className="w-6 h-6 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  +
+                </button>
+              </div>
+            )}
+          </div>
           {groups.map((group) => (
             <div key={group} className="mb-6">
               {group && (
@@ -137,25 +215,28 @@ export default function RecipeEditForm({ recipe }: Props) {
               <ul className="divide-y divide-border">
                 {ingredients
                   .filter((i) => i.group === group)
-                  .map((ing, idx) => (
-                    <li key={idx} className="flex items-center justify-between gap-4 py-2.5 group">
-                      <span className="text-sm">{ing.name}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {(ing.quantity || ing.unit) && (
-                          <span className="text-sm font-bold tabular-nums">
-                            {[ing.quantity, ing.unit].filter(Boolean).join(" ")}
-                          </span>
-                        )}
-                        <button
-                          onClick={() => addIngToList(ing)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                          title="Add to shopping list"
-                        >
-                          <ShoppingCart size={14} />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
+                  .map((ing, idx) => {
+                    const scaledQty = scaleQty(ing.quantity, scaleFactor);
+                    return (
+                      <li key={idx} className="flex items-center justify-between gap-4 py-2.5 group">
+                        <span className="text-sm">{ing.name}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(ing.quantity || ing.unit) && (
+                            <span className="text-sm font-bold tabular-nums">
+                              {[scaledQty, ing.unit].filter(Boolean).join(" ")}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => addIngToList(ing)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                            title="Add to shopping list"
+                          >
+                            <ShoppingCart size={14} />
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
               </ul>
             </div>
           ))}

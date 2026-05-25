@@ -7,8 +7,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ChefHat, Heart, ExternalLink, UtensilsCrossed } from "lucide-react";
 import RecipeActions from "@/components/recipe-actions";
-import RecipeEditForm from "@/components/recipe-edit-form";
-import RecipeEditsSection from "@/components/recipe-edits-section";
+import RecipeModeContainer from "@/components/recipe-mode-container";
 
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
@@ -84,11 +83,8 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         {/* Actions: favorite, log cook, delete, notes */}
         <RecipeActions recipe={recipe} />
 
-        {/* Description + ingredients + steps (view/edit toggled) */}
-        <RecipeEditForm recipe={recipe} />
-
-        {/* Recipe Edits */}
-        {edits.length > 0 && <RecipeEditsSection edits={edits} />}
+        {/* Mode container: Viewing / Recipe / List / Shopping */}
+        <RecipeModeContainer recipe={recipe} edits={edits} />
 
         {/* Notes */}
         <section>

@@ -29,13 +29,14 @@ export async function POST(req: Request) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const list = await getOrCreateList(userId);
-  const { ingredientName, quantity, unit } = await req.json();
+  const { ingredientName, quantity, unit, recipeId } = await req.json();
   if (!ingredientName?.trim()) return NextResponse.json({ error: "name required" }, { status: 400 });
   const [item] = await db.insert(shoppingListItems).values({
     shoppingListId: list.id,
     ingredientName: ingredientName.trim(),
     quantity: quantity ?? null,
     unit: unit?.trim() || null,
+    recipeId: recipeId ?? null,
   }).returning();
   return NextResponse.json(item, { status: 201 });
 }
