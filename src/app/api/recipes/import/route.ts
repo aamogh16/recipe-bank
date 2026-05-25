@@ -45,6 +45,14 @@ export async function POST(req: Request) {
     console.error(`[import] embedding failed after ${ms(t0)} (non-fatal):`, err);
   }
 
+  if (!extracted.title?.trim()) {
+    console.error(`[import] no title extracted — site likely blocks scraping`);
+    return NextResponse.json({
+      error: "extraction_failed",
+      detail: "Couldn't read a recipe from that page. The site may block automated access. Try a different link or paste the URL directly.",
+    }, { status: 422 });
+  }
+
   try {
     const t = Date.now();
     const [row] = await db
