@@ -2,26 +2,34 @@ export const dynamic = "force-dynamic";
 
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { recipes } from "@/db/schema";
+import { recipes, customSpices } from "@/db/schema";
 import { desc, asc, eq } from "drizzle-orm";
 import type { Ingredient } from "@/db/schema";
 import SpiceSortToggle from "./sort-toggle";
+import AddSpice from "./add-spice";
+import { makeIsSpice, cleanSpiceName } from "@/lib/spices";
 
 type Sort = "popular" | "newest";
 
 async function getSpices(sort: Sort, userId: string) {
-  const rows = await db
-    .select({ ingredients: recipes.ingredients, createdAt: recipes.createdAt })
-    .from(recipes)
-    .where(eq(recipes.userId, userId))
-    .orderBy(sort === "newest" ? desc(recipes.createdAt) : asc(recipes.createdAt));
+  const [rows, customRows] = await Promise.all([
+    db.select({ ingredients: recipes.ingredients, createdAt: recipes.createdAt })
+      .from(recipes)
+      .where(eq(recipes.userId, userId))
+      .orderBy(sort === "newest" ? desc(recipes.createdAt) : asc(recipes.createdAt)),
+    db.select({ name: customSpices.name })
+      .from(customSpices)
+      .where(eq(customSpices.userId, userId)),
+  ]);
+
+  const isSpice = makeIsSpice(customRows.map((r) => r.name));
 
   if (sort === "popular") {
     const counts: Record<string, number> = {};
     for (const row of rows) {
       for (const ing of row.ingredients as Ingredient[]) {
-        const name = ing.name.trim();
-        if (name) counts[name] = (counts[name] ?? 0) + 1;
+        const name = cleanSpiceName(ing.name.trim());
+        if (name && isSpice(name)) counts[name] = (counts[name] ?? 0) + 1;
       }
     }
     return Object.entries(counts)
@@ -29,15 +37,15 @@ async function getSpices(sort: Sort, userId: string) {
       .map(([name, count]) => ({ name, count }));
   }
 
-  // Newest: deduplicate, keep first occurrence from newest recipe
   const seen = new Set<string>();
   const result: { name: string; count: number }[] = [];
   for (const row of rows) {
     for (const ing of row.ingredients as Ingredient[]) {
-      const key = ing.name.trim().toLowerCase();
-      if (key && !seen.has(key)) {
+      const name = cleanSpiceName(ing.name.trim());
+      const key = name.toLowerCase();
+      if (key && !seen.has(key) && isSpice(name)) {
         seen.add(key);
-        result.push({ name: ing.name.trim(), count: 1 });
+        result.push({ name, count: 1 });
       }
     }
   }
@@ -60,12 +68,15 @@ export default async function SpicesPage({
         <h1 className="text-2xl font-bold tracking-tight">Spice Hub</h1>
         <SpiceSortToggle current={sort} />
       </div>
-      <p className="text-muted-foreground text-sm mb-8">
-        {spices.length} unique ingredient{spices.length !== 1 ? "s" : ""} across all recipes.
-      </p>
+      <div className="flex items-center justify-between mb-8">
+        <p className="text-muted-foreground text-sm">
+          {spices.length} unique spice{spices.length !== 1 ? "s" : ""} across all recipes.
+        </p>
+        <AddSpice />
+      </div>
 
       {spices.length === 0 ? (
-        <p className="text-muted-foreground">Add some recipes first.</p>
+        <p className="text-muted-foreground">No spices found. Add recipes or expand the master list.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {spices.map(({ name, count }) => (

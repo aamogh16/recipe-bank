@@ -110,6 +110,15 @@ export const shoppingListItems = pgTable("shopping_list_items", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// ─── Custom Spices ────────────────────────────────────────────────────────────
+
+export const customSpices = pgTable("custom_spices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // ─── Meal Plans ───────────────────────────────────────────────────────────────
 
 export const mealPlans = pgTable("meal_plans", {
